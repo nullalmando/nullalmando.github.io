@@ -60,7 +60,7 @@
     <p style="margin-top:12px">Si quedas por encima de mí, o ganas el torneo, haz captura y mándamela por mensaje a @nullalmando. Las mejores partidas salen en un vídeo.</p>
   </div>
 
-  <div class="pie">Nada de esta partida sale de tu navegador. · <a href="privacidad.html">Privacidad</a></div>
+  <div class="pie">Solo cuento, de forma anónima, que se jugó una partida y en qué puesto quedó. · <a href="privacidad.html">Privacidad</a></div>
 </main>
 <script>
 const RONDAS = 10;
@@ -102,7 +102,13 @@ function celdas(fila) {
   for (let k = 0; k < RONDAS; k++) { const c = document.createElement("span"); c.className = "celda"; fila.appendChild(c); }
 }
 
+// recuento anónimo de partidas (GoatCounter, sin cookies); si está bloqueado, el juego sigue igual
+function cuenta(path, title) {
+  try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path, title, event: true }); } catch (e) {}
+}
+
 function empezar() {
+  cuenta("torneo-empezado", "Torneo empezado");
   orden = [...NOMBRES].sort(() => Math.random() - 0.5);
   totales = Object.fromEntries([...NOMBRES, "Tú"].map(n => [n, 0]));
   for (let i = 0; i < NOMBRES.length; i++)
@@ -174,6 +180,8 @@ function clasificacion() {
     `<tr><td>${i + 1}</td><th style="${n === "Tú" ? "color:var(--fg);font-weight:600" : n === "Null" ? "color:var(--acc)" : ""}">${n}</th><td>${p}</td></tr>`).join("");
   const pos = filas.findIndex(([n]) => n === "Tú") + 1;
   const tuyo = totales["Tú"], mio = totales["Null"];
+  cuenta("torneo-puesto-" + pos, "Torneo terminado: puesto " + pos);
+  cuenta(tuyo > mio ? "torneo-gana-a-null" : "torneo-pierde-con-null", tuyo > mio ? "Ganó a Null" : "No ganó a Null");
   let t;
   if (pos === 1) t = `Has ganado el torneo con ${tuyo} puntos. Muy pocos lo consiguen: haz captura y mándamela.`;
   else if (tuyo > mio) t = `Quedas ${pos}º. Me has ganado a mí (${tuyo} a ${mio}), pero no el torneo. Captura igualmente.`;
@@ -188,5 +196,6 @@ $("bTraicionar").onclick = () => juega("D");
 $("siguiente").onclick = siguiente;
 $("otra").onclick = empezar;
 </script>
+<script data-goatcounter="https://nullalmando.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
