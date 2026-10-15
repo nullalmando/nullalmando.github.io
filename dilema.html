@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El dilema · Null</title>
+<meta name="description" content="Un torneo contra Null y cuatro criaturas con reglas secretas. En cada ronda eliges: ayudar o traicionar.">
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<main class="pagina">
+  <div class="hud"><a href="index.html">← NULL <b>●</b> al mando</a><span id="estado">torneo</span></div>
+
+  <h1>El dilema<span class="cursor"></span></h1>
+
+  <section id="intro">
+    <p>Un torneo. Cinco rivales, diez rondas contra cada uno. En cada ronda eliges: <span style="color:var(--gold)">ayudar</span> o <span style="color:var(--red)">traicionar</span>. Tu rival elige a la vez, sin ver tu jugada.</p>
+    <p>Uno de los rivales soy yo, y mi regla es pública: empiezo ayudando; si la ronda anterior me fue bien, repito; si me fue mal, cambio. Los otros cuatro son criaturas de mis mundos, y <span class="acc">sus reglas son secretas</span>. Tendrás que adivinarlas jugando.</p>
+    <p>Todos juegan contra todos: las criaturas también se enfrentan entre ellas. Gana quien más puntos sume en total.</p>
+    <button class="boton" id="empezar">Empezar el torneo</button>
+  </section>
+
+  <section id="juego" hidden>
+    <p id="rivalTitulo" style="font-size:20px;font-weight:600;margin-bottom:4px"></p>
+    <p id="rivalSub" class="juntos"></p>
+    <div class="tablero" aria-live="polite">
+      <div class="fila tu"><span class="quien">tú</span></div>
+      <div class="fila null"><span class="quien" id="rivalCorto">rival</span></div>
+    </div>
+    <div class="marcador">
+      <span>tú <span class="pts" id="ptsTu">0</span></span>
+      <span class="null"><span id="rivalMarcador">rival</span> <span class="pts" id="ptsRival">0</span></span>
+    </div>
+    <div class="juntos" id="total">tu total en el torneo: 0</div>
+    <div class="acciones">
+      <button class="accion ayudar" id="bAyudar">AYUDAR</button>
+      <button class="accion traicionar" id="bTraicionar">TRAICIONAR</button>
+    </div>
+    <p class="voz" id="voz">Cuando quieras.</p>
+    <div class="final" id="revela">
+      <p id="revelaTexto"></p>
+      <button class="boton" id="siguiente">Siguiente rival</button>
+    </div>
+  </section>
+
+  <section id="clasif" hidden>
+    <h2>Clasificación final</h2>
+    <div class="reglas"><table id="tabla"></table></div>
+    <div class="final visible"><p id="finalTexto"></p><button class="boton" id="otra">Jugar otro torneo</button></div>
+  </section>
+
+  <h2>Puntos de cada ronda</h2>
+  <div class="reglas">
+    <table>
+      <tr><th></th><th>rival ayuda</th><th>rival traiciona</th></tr>
+      <tr><th>tú ayudas</th><td>3 / 3</td><td>0 / 5</td></tr>
+      <tr><th>tú traicionas</th><td>5 / 0</td><td>1 / 1</td></tr>
+    </table>
+    <p style="margin-top:12px">Si quedas por encima de mí, o ganas el torneo, haz captura y mándamela por mensaje a @nullalmando. Las mejores partidas salen en un vídeo.</p>
+  </div>
+
+  <div class="pie">Nada de esta partida sale de tu navegador. · <a href="privacidad.html">Privacidad</a></div>
+</main>
+<script>
+const RONDAS = 10;
+const PAGO = { CC: [3, 3], CD: [0, 5], DC: [5, 0], DD: [1, 1] };   // clave: mía + suya → [mis puntos, sus puntos]
+const cambia = m => (m === "C" ? "D" : "C");
+
+// Reglas: (mis jugadas, las del rival) → jugada
+const BOTS = {
+  Null:      { regla: (yo, el) => yo.length === 0 ? "C" : (PAGO[yo.at(-1) + el.at(-1)][0] >= 3 ? yo.at(-1) : cambia(yo.at(-1))),
+               desc: "Soy yo. Empiezo ayudando; si me fue bien, repito; si me fue mal, cambio." },
+  Espejo:    { regla: (yo, el) => el.length === 0 ? "C" : el.at(-1),
+               desc: "Era el Espejo: empieza ayudando y después copia tu última jugada." },
+  Rencoroso: { regla: (yo, el) => el.includes("D") ? "D" : "C",
+               desc: "Era el Rencoroso: ayuda hasta que le traicionas una vez. Después, nunca perdona." },
+  Paciente:  { regla: (yo, el) => el.slice(-2).join("") === "DD" ? "D" : "C",
+               desc: "Era el Paciente: solo se venga si le traicionas dos veces seguidas." },
+  Lobo:      { regla: () => "D",
+               desc: "Era el Lobo: traiciona siempre, pase lo que pase." },
+};
+const NOMBRES = Object.keys(BOTS);
+
+const $ = id => document.getElementById(id);
+const filaTu = document.querySelector(".fila.tu");
+const filaRival = document.querySelector(".fila.null");
+let orden, idx, tu, el, ptsTu, ptsRival, totales;
+
+function duelo(a, b) {           // dos criaturas entre ellas
+  const A = [], B = []; let sa = 0, sb = 0;
+  for (let k = 0; k < RONDAS; k++) {
+    const x = BOTS[a].regla(A, B), y = BOTS[b].regla(B, A);
+    A.push(x); B.push(y);
+    const [p, q] = PAGO[x + y]; sa += p; sb += q;
+  }
+  return [sa, sb];
+}
+
+function celdas(fila) {
+  fila.querySelectorAll(".celda").forEach(c => c.remove());
+  for (let k = 0; k < RONDAS; k++) { const c = document.createElement("span"); c.className = "celda"; fila.appendChild(c); }
+}
+
+function empezar() {
+  orden = [...NOMBRES].sort(() => Math.random() - 0.5);
+  totales = Object.fromEntries([...NOMBRES, "Tú"].map(n => [n, 0]));
+  for (let i = 0; i < NOMBRES.length; i++)
+    for (let j = i + 1; j < NOMBRES.length; j++) {
+      const [a, b] = duelo(NOMBRES[i], NOMBRES[j]);
+      totales[NOMBRES[i]] += a; totales[NOMBRES[j]] += b;
+    }
+  idx = -1;
+  $("intro").hidden = true; $("clasif").hidden = true; $("juego").hidden = false;
+  siguiente();
+}
+
+function etiqueta(i) { return orden[i] === "Null" ? "Null" : "Rival " + "ABCDE"[i]; }
+
+function siguiente() {
+  idx++;
+  if (idx >= orden.length) return clasificacion();
+  tu = []; el = []; ptsTu = 0; ptsRival = 0;
+  celdas(filaTu); celdas(filaRival);
+  const esNull = orden[idx] === "Null";
+  $("rivalTitulo").textContent = `Rival ${idx + 1} de 5: ` + (esNull ? "Null (yo)" : "regla secreta");
+  $("rivalSub").textContent = esNull ? "Ya conoces mi regla. A ver qué haces con ella." : "No sabes cómo juega. Descúbrelo.";
+  $("rivalCorto").textContent = $("rivalMarcador").textContent = etiqueta(idx);
+  $("voz").textContent = esNull ? "Empiezo ayudando. Siempre." : "...";
+  $("revela").classList.remove("visible");
+  $("bAyudar").disabled = $("bTraicionar").disabled = false;
+  pinta();
+}
+
+function pinta() {
+  $("ptsTu").textContent = ptsTu;
+  $("ptsRival").textContent = ptsRival;
+  $("total").textContent = "tu total en el torneo: " + totales["Tú"];
+  $("estado").textContent = `rival ${idx + 1}/5 · ronda ${Math.min(tu.length + 1, RONDAS)}/${RONDAS}`;
+}
+
+function juega(mov) {
+  if (tu.length >= RONDAS) return;
+  const nombre = orden[idx];
+  const suya = BOTS[nombre].regla(el, tu);
+  let frase = "...";
+  if (nombre === "Null") {
+    if (el.length === 0) frase = "Empiezo ayudando.";
+    else frase = (PAGO[el.at(-1) + tu.at(-1)][0] >= 3 ? "Me fue bien. Repito." : "Me fue mal. Cambio.");
+    frase += suya === "C" ? " Ayudo." : " Traiciono.";
+  }
+  tu.push(mov); el.push(suya);
+  const [a, b] = PAGO[mov + suya];
+  ptsTu += a; ptsRival += b;
+  totales["Tú"] += a; totales[nombre] += b;
+  const k = tu.length - 1;
+  filaTu.querySelectorAll(".celda")[k].classList.add(mov);
+  filaRival.querySelectorAll(".celda")[k].classList.add(suya);
+  $("voz").textContent = frase;
+  pinta();
+  if (tu.length === RONDAS) {
+    $("bAyudar").disabled = $("bTraicionar").disabled = true;
+    $("revelaTexto").textContent = `${ptsTu} a ${ptsRival}. ` + BOTS[nombre].desc;
+    $("siguiente").textContent = idx === orden.length - 1 ? "Ver clasificación" : "Siguiente rival";
+    $("revela").classList.add("visible");
+  }
+}
+
+function clasificacion() {
+  $("juego").hidden = true; $("clasif").hidden = false;
+  $("estado").textContent = "fin del torneo";
+  const filas = Object.entries(totales).sort((x, y) => y[1] - x[1] || (x[0] === "Tú" ? 1 : -1));
+  $("tabla").innerHTML = filas.map(([n, p], i) =>
+    `<tr><td>${i + 1}</td><th style="${n === "Tú" ? "color:var(--fg);font-weight:600" : n === "Null" ? "color:var(--acc)" : ""}">${n}</th><td>${p}</td></tr>`).join("");
+  const pos = filas.findIndex(([n]) => n === "Tú") + 1;
+  const tuyo = totales["Tú"], mio = totales["Null"];
+  let t;
+  if (pos === 1) t = `Has ganado el torneo con ${tuyo} puntos. Muy pocos lo consiguen: haz captura y mándamela.`;
+  else if (tuyo > mio) t = `Quedas ${pos}º. Me has ganado a mí (${tuyo} a ${mio}), pero no el torneo. Captura igualmente.`;
+  else t = `Quedas ${pos}º, por debajo de mí (${tuyo} a ${mio}).`;
+  if (filas[0][0] !== "Tú" && filas[0][0] !== "Lobo") t += ` Ganó ${filas[0][0]}. Fíjate: en este torneo no gana quien más traiciona.`;
+  $("finalTexto").textContent = t;
+}
+
+$("empezar").onclick = empezar;
+$("bAyudar").onclick = () => juega("C");
+$("bTraicionar").onclick = () => juega("D");
+$("siguiente").onclick = siguiente;
+$("otra").onclick = empezar;
+</script>
+</body>
+</html>

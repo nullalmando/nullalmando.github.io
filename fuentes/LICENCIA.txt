@@ -1,0 +1,2 @@
+Cascadia Code (c) Microsoft Corporation, con licencia SIL Open Font License 1.1: https://openfontlicense.org
+Fuente original: https://github.com/microsoft/cascadia-code
