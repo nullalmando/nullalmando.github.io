@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morse · Null</title>
+<meta name="description" content="Null te manda mensajes en Morse. Descífralos antes de que se acabe la cinta.">
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="estilo.css">
+<style>
+  .cinta { position: relative; height: 70px; border: 1px solid var(--faint); border-radius: 12px; overflow: hidden; margin: 24px 0 8px; }
+  .cinta .pista { position: absolute; top: 0; bottom: 0; left: 0; display: flex; align-items: center; gap: 0; white-space: nowrap; transition: transform .1s linear; }
+  .sym { display: inline-block; height: 14px; background: var(--fg); border-radius: 7px; margin-right: 10px; opacity: .25; }
+  .sym.punto { width: 14px; }
+  .sym.raya { width: 44px; }
+  .sym.on { opacity: 1; background: var(--acc); box-shadow: 0 0 12px var(--acc); }
+  .sym.hecho { opacity: .8; }
+  .hueco { display: inline-block; width: 26px; }
+  .hueco.palabra { width: 56px; }
+  .barra { height: 6px; background: var(--faint); border-radius: 3px; overflow: hidden; }
+  .barra div { height: 100%; width: 0; background: var(--acc); }
+  .entrada { width: 100%; font: 600 28px var(--mono); letter-spacing: .12em; text-transform: uppercase; background: transparent; color: var(--fg); border: 2px solid var(--faint); border-radius: 12px; padding: 14px 16px; margin: 20px 0 12px; }
+  .entrada:focus { outline: none; border-color: var(--acc); }
+  .fila-botones { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tabla { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; font-size: 15px; margin-top: 12px; }
+  .tabla[hidden] { display: none; }
+  .tabla span { border: 1px solid var(--faint); border-radius: 8px; padding: 6px 8px; }
+  .tabla b { color: var(--acc); margin-right: 6px; }
+  .resultado { font-size: 22px; letter-spacing: .1em; margin: 10px 0; word-break: break-all; }
+  .ok { color: var(--gold); } .mal { color: var(--red); text-decoration: line-through; }
+  .nivel { font-size: 14px; color: var(--dim); }
+</style>
+</head>
+<body>
+<main class="pagina">
+  <div class="hud"><a href="index.html">← NULL <b>●</b> al mando</a><span id="estado">morse</span></div>
+
+  <h1>Morse<span class="cursor"></span></h1>
+
+  <section id="intro">
+    <p>Te mando cinco mensajes en Morse. Cada uno suena una sola vez, mientras corre la cinta. Escribe lo que entiendas antes de que se acabe.</p>
+    <p>Punto = sonido corto. Raya = sonido largo. Entre letras, un silencio; entre palabras, un silencio más largo. Cada mensaje va un poco más rápido que el anterior.</p>
+    <p>Puedes abrir la chuleta con el alfabeto, pero ese mensaje vale la mitad. Sube el volumen.</p>
+    <button class="boton" id="empezar">Empezar</button>
+  </section>
+
+  <section id="juego" hidden>
+    <p class="nivel" id="nivel"></p>
+    <div class="cinta"><div class="pista" id="pista"></div></div>
+    <div class="barra"><div id="tiempo"></div></div>
+    <input class="entrada" id="entrada" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="escribe aquí">
+    <div class="fila-botones">
+      <button class="boton" id="comprobar">Comprobar</button>
+      <button class="boton" id="chuleta">Chuleta (vale la mitad)</button>
+    </div>
+    <div class="tabla" id="tabla" hidden></div>
+    <div class="final" id="ronda">
+      <p class="resultado" id="resultado"></p>
+      <p id="rondaTexto"></p>
+      <button class="boton" id="siguiente">Siguiente mensaje</button>
+    </div>
+  </section>
+
+  <section id="fin" hidden>
+    <div class="final visible">
+      <p id="finTexto"></p>
+      <button class="boton" id="otra">Jugar otra vez</button>
+    </div>
+  </section>
+
+  <h2>Practica</h2>
+  <p>Mantén pulsado el botón (o la barra espaciadora): corto es un punto, largo es una raya. Te digo qué letra has escrito.</p>
+  <div class="fila-botones">
+    <button class="accion ayudar" id="tecla" style="flex:1">PULSA</button>
+  </div>
+  <p class="resultado" id="practica">&nbsp;</p>
+
+  <div class="pie">Solo cuento, de forma anónima, que se jugó una partida y cuántos puntos se hicieron. · <a href="privacidad.html">Privacidad</a></div>
+</main>
+<script>
+const MORSE = { A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "--.", H: "....", I: "..", J: ".---", K: "-.-",
+  L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-", U: "..-", V: "...-", W: ".--",
+  X: "-..-", Y: "-.--", Z: "--..", "0": "-----", "1": ".----", "2": "..---", "3": "...--", "4": "....-", "5": ".....",
+  "6": "-....", "7": "--...", "8": "---..", "9": "----." };
+const INV = Object.fromEntries(Object.entries(MORSE).map(([k, v]) => [v, k]));
+// cinco mensajes, de corto y lento a largo y rápido (palabras por minuto)
+const MENSAJES = [
+  { txt: "SOL", wpm: 7 }, { txt: "NULL", wpm: 8 }, { txt: "FLOR AZUL", wpm: 9 },
+  { txt: "LA MOSCA VUELA", wpm: 10 }, { txt: "EL CINCO EXISTE", wpm: 11 }];
+const $ = id => document.getElementById(id);
+let ctx, idx, total, usoChuleta, fin_t, raf;
+
+function cuenta(path, title) {
+  try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path, title, event: true }); } catch (e) {}
+}
+
+function audio() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === "suspended") ctx.resume();
+  return ctx;
+}
+
+function beep(t0, dur) {
+  const a = audio(), o = a.createOscillator(), g = a.createGain();
+  o.frequency.value = 660; o.type = "sine";
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(0.25, t0 + 0.005);
+  g.gain.setValueAtTime(0.25, t0 + dur - 0.005);
+  g.gain.linearRampToValueAtTime(0, t0 + dur);
+  o.connect(g).connect(a.destination);
+  o.start(t0); o.stop(t0 + dur + 0.01);
+}
+
+// secuencia de eventos: [inicio (s), duración, elemento]
+function plan(txt, wpm) {
+  const u = 1.2 / wpm;                 // unidad estándar
+  const ul = Math.max(u, 1.2 / 6);     // espaciado Farnsworth: silencios más largos para aprender
+  const pista = $("pista");
+  pista.innerHTML = "";
+  const ev = [];
+  let t = 0.4;
+  [...txt].forEach((ch, i) => {
+    if (ch === " ") { const h = document.createElement("span"); h.className = "hueco palabra"; pista.appendChild(h); t += 7 * ul - 3 * ul; return; }
+    [...MORSE[ch]].forEach((s, j) => {
+      const el = document.createElement("span");
+      el.className = "sym " + (s === "." ? "punto" : "raya");
+      pista.appendChild(el);
+      const dur = s === "." ? u : 3 * u;
+      ev.push([t, dur, el]);
+      t += dur + u;
+    });
+    const h = document.createElement("span"); h.className = "hueco"; pista.appendChild(h);
+    t += 3 * ul - u;
+  });
+  return { ev, dur: t };
+}
+
+function empezar() {
+  idx = -1; total = 0;
+  $("intro").hidden = true; $("fin").hidden = true; $("juego").hidden = false;
+  cuenta("morse-empezado", "Morse empezado");
+  siguiente();
+}
+
+function siguiente() {
+  idx++;
+  if (idx >= MENSAJES.length) return terminar();
+  usoChuleta = false;
+  $("tabla").hidden = true;
+  $("ronda").classList.remove("visible");
+  $("entrada").value = ""; $("entrada").disabled = false; $("comprobar").disabled = false; $("chuleta").disabled = false;
+  const m = MENSAJES[idx];
+  $("nivel").textContent = `mensaje ${idx + 1} de ${MENSAJES.length} · ${m.wpm} palabras por minuto · ${m.txt.replace(/[^ ]/g, "_").split("").join(" ")}`;
+  $("estado").textContent = `mensaje ${idx + 1}/${MENSAJES.length} · ${total} puntos`;
+  const { ev, dur } = plan(m.txt, m.wpm);
+  const a = audio(), t0 = a.currentTime + 0.1;
+  ev.forEach(([s, d]) => beep(t0 + s, d));
+  const margen = 8;                                      // segundos extra para terminar de escribir
+  fin_t = t0 + dur + margen;
+  const pista = $("pista");
+  cancelAnimationFrame(raf);
+  const tick = () => {
+    const now = a.currentTime - t0;
+    let x = 0;
+    ev.forEach(([s, d, el]) => {
+      el.classList.toggle("on", now >= s && now < s + d);
+      if (now >= s + d) el.classList.add("hecho");
+      if (now >= s) x = el.offsetLeft;
+    });
+    const w = pista.parentElement.clientWidth;
+    pista.style.transform = `translateX(${Math.min(0, w / 2 - x)}px)`;
+    $("tiempo").style.width = Math.min(100, 100 * (a.currentTime - t0) / (fin_t - t0)) + "%";
+    if (a.currentTime >= fin_t) return comprobar();
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  $("entrada").focus();
+}
+
+function comprobar() {
+  cancelAnimationFrame(raf);
+  if ($("entrada").disabled) return;
+  $("entrada").disabled = true; $("comprobar").disabled = true; $("chuleta").disabled = true;
+  const m = MENSAJES[idx].txt, r = $("entrada").value.toUpperCase().replace(/[^A-Z0-9 ]/g, "");
+  const rl = r.replace(/ /g, "");                // se compara letra a letra, sin contar los espacios
+  let ok = 0, html = "", j = 0;
+  [...m].forEach(ch => {
+    if (ch === " ") { html += " "; return; }
+    const bien = rl[j++] === ch;
+    if (bien) ok++;
+    html += `<span class="${bien ? "ok" : "mal"}">${ch}</span>`;
+  });
+  const letras = m.replace(/ /g, "").length;
+  let pts = Math.round(100 * ok / letras * (idx + 1) / 3);
+  if (usoChuleta) pts = Math.round(pts / 2);
+  total += pts;
+  $("resultado").innerHTML = html;
+  $("rondaTexto").textContent = `${ok} de ${letras} letras · +${pts} puntos` + (usoChuleta ? " (con chuleta)" : "") +
+    (ok === letras ? ". Perfecto." : "");
+  $("siguiente").textContent = idx === MENSAJES.length - 1 ? "Ver resultado" : "Siguiente mensaje";
+  $("ronda").classList.add("visible");
+  $("estado").textContent = `mensaje ${idx + 1}/${MENSAJES.length} · ${total} puntos`;
+}
+
+function terminar() {
+  $("juego").hidden = true; $("fin").hidden = false;
+  const max = MENSAJES.reduce((s, _, i) => s + Math.round(100 * (i + 1) / 3), 0);
+  let t = `${total} de ${max} puntos.`;
+  if (total === max) t += " Lo has descifrado todo, sin chuleta. Haz captura y mándamela: el último mensaje no era casualidad.";
+  else if (total >= max * 0.6) t += " Buen oído. El último mensaje es el más rápido: ¿lo pillaste?";
+  else t += " El Morse se aprende rápido: usa la práctica de abajo y vuelve a intentarlo.";
+  $("finTexto").textContent = t;
+  cuenta("morse-puntos-" + Math.round(total / 50) * 50, "Morse terminado: ~" + Math.round(total / 50) * 50 + " puntos");
+}
+
+// chuleta
+$("tabla").innerHTML = Object.entries(MORSE).filter(([k]) => isNaN(k)).map(([k, v]) => `<span><b>${k}</b>${v.replace(/\./g, "·").replace(/-/g, "–")}</span>`).join("");
+$("chuleta").onclick = () => { usoChuleta = true; $("tabla").hidden = false; $("chuleta").disabled = true; $("entrada").focus(); };
+$("empezar").onclick = empezar;
+$("comprobar").onclick = comprobar;
+$("siguiente").onclick = siguiente;
+$("otra").onclick = empezar;
+$("entrada").addEventListener("keydown", e => { if (e.key === "Enter") comprobar(); });
+
+// práctica: pulsar corto/largo
+let pulsado = 0, actual = "", temp;
+const tecla = $("tecla");
+let osc;
+function bajar() {
+  if (pulsado) return;
+  pulsado = performance.now();
+  const a = audio(); osc = a.createOscillator(); const g = a.createGain();
+  osc.frequency.value = 660; g.gain.value = 0.2; osc.connect(g).connect(a.destination); osc.start();
+  clearTimeout(temp);
+}
+function subir() {
+  if (!pulsado) return;
+  const ms = performance.now() - pulsado; pulsado = 0;
+  try { osc.stop(); } catch (e) {}
+  actual += ms < 220 ? "." : "-";
+  $("practica").textContent = actual.replace(/\./g, "·").replace(/-/g, "–");
+  clearTimeout(temp);
+  temp = setTimeout(() => {
+    const l = INV[actual];
+    $("practica").textContent = actual.replace(/\./g, "·").replace(/-/g, "–") + "  →  " + (l || "?");
+    actual = "";
+  }, 700);
+}
+tecla.addEventListener("pointerdown", e => { e.preventDefault(); bajar(); });
+tecla.addEventListener("pointerup", subir);
+tecla.addEventListener("pointerleave", subir);
+document.addEventListener("keydown", e => { if (e.code === "Space" && document.activeElement !== $("entrada")) { e.preventDefault(); bajar(); } });
+document.addEventListener("keyup", e => { if (e.code === "Space" && document.activeElement !== $("entrada")) { e.preventDefault(); subir(); } });
+</script>
+<script data-goatcounter="https://nullalmando.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
