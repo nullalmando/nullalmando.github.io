@@ -84,9 +84,11 @@ const MORSE = { A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "
   "6": "-....", "7": "--...", "8": "---..", "9": "----." };
 const INV = Object.fromEntries(Object.entries(MORSE).map(([k, v]) => [v, k]));
 // cinco mensajes, de corto y lento a largo y rápido (palabras por minuto)
+// los mensajes van en ROT13 para que no se lean a simple vista en el código (si lo has descubierto, bien jugado)
+const rot = s => s.replace(/[A-Z]/g, c => String.fromCharCode((c.charCodeAt(0) - 52) % 26 + 65));
 const MENSAJES = [
-  { txt: "SOL", wpm: 7 }, { txt: "NULL", wpm: 8 }, { txt: "FLOR AZUL", wpm: 9 },
-  { txt: "LA MOSCA VUELA", wpm: 10 }, { txt: "EL CINCO EXISTE", wpm: 11 }];
+  { txt: rot("FBY"), wpm: 7 }, { txt: rot("AHYY"), wpm: 8 }, { txt: rot("SYBE NMHY"), wpm: 9 },
+  { txt: rot("YN ZBFPN IHRYN"), wpm: 10 }, { txt: rot("RY PVAPB RKVFGR"), wpm: 11 }];
 const $ = id => document.getElementById(id);
 let ctx, idx, total, usoChuleta, fin_t, raf;
 
