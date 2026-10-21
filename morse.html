@@ -208,7 +208,7 @@ function terminar() {
   $("juego").hidden = true; $("fin").hidden = false;
   const max = MENSAJES.reduce((s, _, i) => s + Math.round(100 * (i + 1) / 3), 0);
   let t = `${total} de ${max} puntos.`;
-  if (total === max) t += " Lo has descifrado todo, sin chuleta. Haz captura y mándamela: el último mensaje no era casualidad.";
+  if (total === max) t += " Lo has descifrado todo, sin chuleta. Haz captura y mándamela por mensaje directo a @nullalmando en Instagram: entrarás en el salón de la fama. Y el último mensaje no era casualidad.";
   else if (total >= max * 0.6) t += " Buen oído. El último mensaje es el más rápido: ¿lo pillaste?";
   else t += " El Morse se aprende rápido: usa la práctica de abajo y vuelve a intentarlo.";
   $("finTexto").textContent = t;

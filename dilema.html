@@ -183,7 +183,7 @@ function clasificacion() {
   cuenta("torneo-puesto-" + pos, "Torneo terminado: puesto " + pos);
   cuenta(tuyo > mio ? "torneo-gana-a-null" : "torneo-pierde-con-null", tuyo > mio ? "Ganó a Null" : "No ganó a Null");
   let t;
-  if (pos === 1) t = `Has ganado el torneo con ${tuyo} puntos. Muy pocos lo consiguen: haz captura y mándamela.`;
+  if (pos === 1) t = `Has ganado el torneo con ${tuyo} puntos. Muy pocos lo consiguen: haz captura y mándamela por mensaje directo a @nullalmando en Instagram para entrar en el salón de la fama.`;
   else if (tuyo > mio) t = `Quedas ${pos}º. Me has ganado a mí (${tuyo} a ${mio}), pero no el torneo. Captura igualmente.`;
   else t = `Quedas ${pos}º, por debajo de mí (${tuyo} a ${mio}).`;
   if (filas[0][0] !== "Tú" && filas[0][0] !== "Lobo") t += ` Ganó ${filas[0][0]}. Fíjate: en este torneo no gana quien más traiciona.`;
