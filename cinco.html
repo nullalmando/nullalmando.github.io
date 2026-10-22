@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El vacío · Null</title>
+<meta name="description" content="El juego 5. Cinco piezas escondidas en mis vídeos abren esta puerta.">
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="estilo.css">
+<style>
+  .piezas { display: grid; gap: 12px; margin: 28px 0; }
+  .pieza { display: grid; grid-template-columns: 44px 1fr 34px; align-items: center; gap: 10px; }
+  .pieza .n { color: var(--dim); font-size: 14px; }
+  .pieza input { font: 600 22px var(--mono); letter-spacing: .14em; text-transform: uppercase; background: transparent;
+    color: var(--fg); border: 2px solid var(--faint); border-radius: 10px; padding: 10px 12px; width: 100%; }
+  .pieza input:focus { outline: none; border-color: var(--acc); }
+  .pieza input.bien { border-color: var(--gold); color: var(--gold); }
+  .pieza .marca { font-size: 22px; text-align: center; }
+  .puerta { border: 1px solid var(--faint); border-radius: 14px; padding: 22px; margin-top: 18px; min-height: 120px; }
+  .puerta.abierta { border-color: var(--acc); box-shadow: 0 0 30px rgba(255, 74, 28, .25); }
+  .vacio-anim { height: 120px; display: flex; align-items: center; justify-content: center; }
+  .vacio-anim span { width: 10px; height: 10px; margin: 0 8px; border-radius: 50%; background: var(--faint); transition: background .4s, box-shadow .4s; }
+  .vacio-anim span.on { background: var(--acc); box-shadow: 0 0 14px var(--acc); }
+</style>
+</head>
+<body>
+<main class="pagina">
+  <div class="hud"><a href="index.html">← NULL <b>●</b> al mando</a><span id="estado">0/5</span></div>
+  <h1>El vacío<span class="cursor"></span></h1>
+  <p>El cinco existe. Es esta puerta.</p>
+  <p>He escondido cinco piezas en mis próximos vídeos. Cada pieza es una palabra, y cada una está escondida de una forma distinta: en el sonido, en un fotograma, en el fondo, en las palabras que digo… Ninguna está a simple vista. Cada vídeo con pieza lo marcará: <b>pieza N de 5</b>.</p>
+  <p>Escribe cada palabra en su casilla. Cuando las cinco estén bien, la puerta se abre.</p>
+
+  <div class="vacio-anim" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+
+  <div class="piezas" id="piezas"></div>
+  <div class="puerta" id="puerta"><p class="juntos" id="puertaTexto">La puerta está cerrada.</p></div>
+
+  <div class="pie">Las comprobaciones se hacen en tu navegador y van cifradas: leer el código no te dará las respuestas. Solo cuento, de forma anónima, que alguien abrió la puerta. · <a href="privacidad.html">Privacidad</a></div>
+</main>
+<script>
+const SAL = "null-vacio-5";
+const H = ["1ac924a7122f6c6eff08acdd546bb9b031e695efc2876c117f72e860a2dccbd4",
+  "ca18603a8d2044d8c01bb22f4beda1abe8a0744f37e1c2c53c6c2823975cf339",
+  "34eac36b4b0018b05f9e582a5e15dd1f5acd3a10ce0363d9de8fa17d25ab1c38",
+  "683faaff6c68b76a4e75f32c45589174c9b133c3d92e5623e4f4a222b1b2002f",
+  "484f10d8c7fce8330c8074c1c9fcc76c264281a36045695a047e247792c883cf"];
+const CT = "qfc8qO8x9lYQD8y1Mdbm46KZ/2tdAAfLjd6J+4Cl3wwQonlhNiVj/HZBYNICCcNtON/KK6vDBwjqnCW1EC5Sm2Fs1mgTQQqUnuT9uP+uJS+djaZ1CWW/L4s1/Sv31q7ifd+wzk3Qr5wjV/5u53YAlFROugSbq4Z7utodT8ApFmigEb+D3ICBWpZ0CuHg0dVOqNIfkU8iYvHnwXPrYH2llVsnUhbFk33/Dmnp95olYvhIgkPfZIJOjowSrldFtcSwcug2n0nR/uD4JyYwsFhD23qZqBptgNUEikiawJB9Zcw3MprvxQPsSVDiXyWOGAWIMDaWSyNDvzx2B9ImXNQWd/Ihft3+ivNw4fGtxS6MFw2WlMNnyTkINcc0rKQC9t9YeVyRyn4MkfTdSVirudDJsSWRu6KclmN1L84vplOTn0ZpSCnnwPXm9HXMRFSZNCpaX5Ds/5+yvYlysya/Os2PL3k=";
+const enc = new TextEncoder();
+const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+const sha = async s => crypto.subtle.digest("SHA-256", enc.encode(s));
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z]/g, "");
+const ok = [false, false, false, false, false];
+let abierta = false;
+
+function cuenta(path, title) {
+  try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path, title, event: true }); } catch (e) {}
+}
+
+const cont = document.getElementById("piezas");
+for (let k = 0; k < 5; k++) {
+  const row = document.createElement("div");
+  row.className = "pieza";
+  row.innerHTML = `<span class="n">${k + 1}/5</span><input aria-label="pieza ${k + 1}" autocomplete="off" spellcheck="false"><span class="marca"></span>`;
+  cont.appendChild(row);
+  const inp = row.querySelector("input"), marca = row.querySelector(".marca");
+  inp.addEventListener("input", async () => {
+    const w = norm(inp.value);
+    const bien = w.length > 0 && hex(await sha(`${SAL}|${k}|${w}`)) === H[k];
+    ok[k] = bien;
+    inp.classList.toggle("bien", bien);
+    marca.textContent = bien ? "●" : "";
+    marca.style.color = "var(--acc)";
+    pinta();
+    if (bien) { inp.disabled = true; const sig = cont.querySelectorAll("input")[k + 1]; if (sig) sig.focus(); }
+  });
+}
+
+function pinta() {
+  const n = ok.filter(Boolean).length;
+  document.getElementById("estado").textContent = `${n}/5`;
+  document.querySelectorAll(".vacio-anim span").forEach((s, i) => s.classList.toggle("on", ok[i]));
+  if (n === 5 && !abierta) abrir();
+}
+
+async function abrir() {
+  abierta = true;
+  const frase = [...cont.querySelectorAll("input")].map(i => norm(i.value)).join(" ");
+  const ct = Uint8Array.from(atob(CT), c => c.charCodeAt(0));
+  let ks = new Uint8Array(0), i = 0;
+  while (ks.length < ct.length) {
+    const blk = new Uint8Array(await sha(`${SAL}|ks|${frase}|${i++}`));
+    const t = new Uint8Array(ks.length + blk.length); t.set(ks); t.set(blk, ks.length); ks = t;
+  }
+  const txt = new TextDecoder().decode(ct.map((b, j) => b ^ ks[j]));
+  document.getElementById("puerta").classList.add("abierta");
+  document.getElementById("puertaTexto").textContent = txt;
+  document.getElementById("puertaTexto").style.color = "var(--fg)";
+  cuenta("vacio-abierto", "El vacío: puerta abierta");
+}
+</script>
+<script data-goatcounter="https://nullalmando.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
