@@ -29,7 +29,7 @@
   <h1>El vacío<span class="cursor"></span></h1>
   <p>El cinco existe. Es esta puerta.</p>
   <p>He escondido cinco piezas en mis próximos vídeos. Cada pieza es una palabra, y cada una está escondida de una forma distinta: en el sonido, en un fotograma, en el fondo, en las palabras que digo… Ninguna está a simple vista. Cada vídeo con pieza lo marcará: <b>pieza N de 5</b>.</p>
-  <p>Escribe cada palabra en su casilla. Cuando las cinco estén bien, la puerta se abre.</p>
+  <p>Escribe cada palabra en su casilla, en orden, y prueba la puerta. Solo se abre con las cinco correctas: no te diré cuáles fallan.</p>
 
   <div class="vacio-anim" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 
@@ -40,11 +40,7 @@
 </main>
 <script>
 const SAL = "null-vacio-5";
-const H = ["1ac924a7122f6c6eff08acdd546bb9b031e695efc2876c117f72e860a2dccbd4",
-  "ca18603a8d2044d8c01bb22f4beda1abe8a0744f37e1c2c53c6c2823975cf339",
-  "34eac36b4b0018b05f9e582a5e15dd1f5acd3a10ce0363d9de8fa17d25ab1c38",
-  "683faaff6c68b76a4e75f32c45589174c9b133c3d92e5623e4f4a222b1b2002f",
-  "484f10d8c7fce8330c8074c1c9fcc76c264281a36045695a047e247792c883cf"];
+const CHECK = "9107691efceb0fc6e634a58f0963c45db54eff1260b028f2c62895d370b83699";   // PBKDF2 de la frase completa
 const CT = "qfc8qO8x9lYQD8y1Mdbm46KZ/2tdAAfLjd6J+4Cl3wwQonlhNiVj/HZBYNICCcNtON/KK6vDBwjqnCW1EC5Sm2Fs1mgTQQqUnuT9uP+uJS+djaZ1CWW/L4s1/Sv31q7ifd+wzk3Qr5wjV/5u53YAlFROugSbq4Z7utodT8ApFmigEb+D3ICBWpZ0CuHg0dVOqNIfkU8iYvHnwXPrYH2llVsnUhbFk33/Dmnp95olYvhIgkPfZIJOjowSrldFtcSwcug2n0nR/uD4JyYwsFhD23qZqBptgNUEikiawJB9Zcw3MprvxQPsSVDiXyWOGAWIMDaWSyNDvzx2B9ImXNQWd/Ihft3+ivNw4fGtxS6MFw2WlMNnyTkINcc0rKQC9t9YeVyRyn4MkfTdSVirudDJsSWRu6KclmN1L84vplOTn0ZpSCnnwPXm9HXMRFSZNCpaX5Ds/5+yvYlysya/Os2PL3k=";
 const enc = new TextEncoder();
 const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
@@ -63,24 +59,37 @@ for (let k = 0; k < 5; k++) {
   row.className = "pieza";
   row.innerHTML = `<span class="n">${k + 1}/5</span><input aria-label="pieza ${k + 1}" autocomplete="off" spellcheck="false"><span class="marca"></span>`;
   cont.appendChild(row);
-  const inp = row.querySelector("input"), marca = row.querySelector(".marca");
-  inp.addEventListener("input", async () => {
-    const w = norm(inp.value);
-    const bien = w.length > 0 && hex(await sha(`${SAL}|${k}|${w}`)) === H[k];
-    ok[k] = bien;
-    inp.classList.toggle("bien", bien);
-    marca.textContent = bien ? "●" : "";
-    marca.style.color = "var(--acc)";
-    pinta();
-    if (bien) { inp.disabled = true; const sig = cont.querySelectorAll("input")[k + 1]; if (sig) sig.focus(); }
-  });
+  row.querySelector("input").addEventListener("keydown", e => { if (e.key === "Enter") probar(); });
+}
+const btn = document.createElement("button");
+btn.className = "boton"; btn.textContent = "Probar la puerta"; btn.onclick = probar;
+cont.appendChild(btn);
+
+async function pbkdf2(frase) {
+  const key = await crypto.subtle.importKey("raw", enc.encode(frase), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(SAL + "|v2"), iterations: 300000 }, key, 256);
+  return hex(bits);
+}
+
+async function probar() {
+  if (abierta) return;
+  const ins = [...cont.querySelectorAll("input")];
+  const palabras = ins.map(i => norm(i.value));
+  const llenas = palabras.filter(Boolean).length;
+  ins.forEach((inp, k) => { ok[k] = !!palabras[k]; });
+  pinta();
+  if (llenas < 5) { document.getElementById("puertaTexto").textContent = "Faltan piezas."; return; }
+  btn.disabled = true; btn.textContent = "Comprobando…";
+  const bien = (await pbkdf2(palabras.join(" "))) === CHECK;
+  btn.disabled = false; btn.textContent = "Probar la puerta";
+  if (bien) { ins.forEach(i => { i.classList.add("bien"); i.disabled = true; }); abrir(); }
+  else document.getElementById("puertaTexto").textContent = "La puerta no se abre. Alguna pieza no es la correcta (o no está en su sitio).";
 }
 
 function pinta() {
   const n = ok.filter(Boolean).length;
   document.getElementById("estado").textContent = `${n}/5`;
   document.querySelectorAll(".vacio-anim span").forEach((s, i) => s.classList.toggle("on", ok[i]));
-  if (n === 5 && !abierta) abrir();
 }
 
 async function abrir() {
